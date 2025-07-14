@@ -1,0 +1,936 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Menu, ZoomIn, ZoomOut, Eye, EyeOff, X, ExternalLink, Users, Building, FolderOpen, Settings, Info, HelpCircle, Languages, Accessibility, Filter } from 'lucide-react';
+import * as d3 from 'd3';
+
+const RelationshipGraphApp = () => {
+  // 状态管理
+  const [viewMode, setViewMode] = useState('graph'); // 'graph' or 'simple'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [showModal, setShowModal] = useState(null);
+  const [highlightedNodes, setHighlightedNodes] = useState(new Set());
+  const [visibleTypes, setVisibleTypes] = useState({
+    People: true,
+    Institutions: true,
+    Projects: true,
+    Methods: true
+  });
+  
+  const svgRef = useRef();
+  const simulationRef = useRef();
+  
+  // 设置页面标题
+  useEffect(() => {
+    document.title = 'VOICE Prototype V1';
+  }, []);
+  
+  // 修正后的完整数据集 - 基于Excel真实数据
+  const data = {
+    nodes: [
+      // 人物数据 (9个)
+      { id: 'P001', name: 'Jakob Kukula', type: 'People', bio: 'Jakob Kukula is a multidisciplinary creator, working in the fields of art, design and music. Born and raised in Berlin, he is life-long influenced by the city\'s thriving scenes. After finishing his product design studies at the Bauhaus University in Weimar, that included abroad experiences at the Pratt Institute, NY and working with Studio Drift in Amsterdam, he returned to Berlin where he worked two years with the Studio Olafur Eliasson and finished his MA Thesis at KHB Weißensee. As Founder of SpreeBerlin and Symbiotic lab, he currently explores a planet-centric practice; questioning the relationship between humans and nature, seeking ways to reconnect and suggesting ideas for transformation by combining art, design and science.', website: 'https://www.spreeberlin.de/', connections: 'Waag (Lead Mentor)' },
+      { id: 'P002', name: 'Marina Wainer', type: 'People', bio: 'Marina Wainer is a Paris-based artist. For the last 20 years she has been making interactive art, at the nexus of creation, technology and society. Her work explores societal issues and spaces of representation, with a sensitive approach, imagining experiences where the audience is at the heart of the work. The interaction proposed in her projects, which encourages participation, has turned into collaboration, involving the public upstream and working with various communities. Throughout the years, Wainer has been developing transdisciplinary collaborations with artists, researchers and scientists.', website: 'http://marinaestelawainer.com', connections: 'Waag (Lead Mentor)' },
+      { id: 'P003', name: 'Anna Dumitriu', type: 'People', bio: 'Anna Dumitriu is an award winning internationally renowned British artist who works with BioArt, sculpture, installation, and digital media to explore our relationship to healthcare, climate-change and emerging technologies. Past exhibitions include ZKM, Ars Electronica, BOZAR, The Picasso Museum, HeK Basel, Nobel Prize Museum, MOCA Taipei, LABoral, Art Laboratory Berlin, and Eden Project. Anna\'s work has featured in significant publications including Frieze, Artforum International Magazine, Leonardo Journal, The Art Newspaper, Nature and The Lancet.', website: 'https://annadumitriu.co.uk/', connections: 'INOVA (Lead Mentor)' },
+      { id: 'P004', name: 'Lucie Hernandez', type: 'People', bio: 'Lucie\'s work explores the production and consumption of fashion and textile products and the role of craft to contribute more sustainable, responsible and durable practices. Lucie holds a background in human-computer interaction, designing tangible interfaces for embodied interaction. Her PhD investigated craft practice in the design of electronic textiles (E-Textiles) for embodied interaction. Lucie addressed sustainable practices for smart textiles in environmental and social contexts for WEAR Sustain, an EU Horizon 2020 Research and Development Programme.', website: 'touchcraft.org.uk', connections: 'RCA (Lead Mentor)' },
+      { id: 'P005', name: 'Gayil Nalls', type: 'People', bio: 'Gayil Nalls, Ph.D. is an interdisciplinary artist, writer, and theorist. Nalls is best known for the world olfactory social sculpture World Sensorium, a statically based composition of phytogentic materials. World Sensorium, an ongoing work of scale and complexity, premiered in New York during the Times Square 2000 celebrations, released onto the crowd of two million participants. The work was featured in Washington D.C.\'s Millennium Around the World gala, the Vatican\'s Millennium Jubilee in Rome, Italy, and was endorsed by UNESCO as a project of peace and goodwill.', website: 'worldsensorium.com', connections: 'UCD (Lead Mentor)' },
+      { id: 'P006', name: 'Ruth Catlow', type: 'People', bio: 'As co-founder and director of Furtherfield, Ruth Catlow has organised for nearly 30 years, for inclusivity and equity in art and technology, advocating for their use in imagining and building real social change and positive environmental impact. Furtherfield\'s mission is to open up the tools and debates of the exclusionary realms of art and technology for collective action for collective good. In Ruth\'s artistic work, she develop processes for critical group-driven discovery and playful co-creation that embrace more than human interests for fairer and more connected cultural ecologies and economies.', website: 'www.furtherfield.org', connections: 'RCA (Lead Mentor)' },
+      { id: 'P007', name: 'Camille Baker', type: 'People', bio: 'Camille is Professor of Interactive and Immersive Art at the Royal College of Art. She is an interdisciplinary digital artist, curator and researcher in Immersive Experiences, Interactive Art, XR design, interactive art, participatory performance, e-textiles, emerging technologies, and digital art curating – across creative disciplines – now primarily focussed on XR artworks on women\'s healthcare stories, to validate patients\' experiences and create empathy in others.', website: 'https://www.rca.ac.uk/more/staff/camille-baker/', connections: 'Royal College of Art' },
+      { id: 'P008', name: 'Lizbeth Goodman', type: 'People', bio: 'Chair of Creative Technology Innovation & Director of SMARTlab, University College Dublin, where she directs the Inclusive Design Research Centre of Ireland at UCD, in partnership with SMARTlab clg and the Academy4theFuture. She is Chair of EDI for SMME and is an Athena Swan programme representative for Engineering & Architecture. Lizbeth founded the SMARTlab in its first iteration in 1992 and has developed the award-winning practice-based PhD Programme through the institute.', website: 'https://people.ucd.ie/lizbeth.goodman', connections: 'University College Dublin' },
+      { id: 'P009', name: 'Hua Dong', type: 'People', bio: 'Dr Hua Dong is Professor in Design and Director of Brunel Design Research Centre. Her research expertise is inclusive design. She was elected Vice-Chair of the Design Research Society (DRS) in 2024. She has contributed to the creation and development of several successful research groups in the UK and China. She established the inclusive design research group at Brunel University London. Her research contributed to the Design Council\'s \'Design Bugs Out\' Challenge.', website: 'https://www.brunel.ac.uk/people/hua-dong', connections: 'Brunel University' },
+      
+      // 机构数据 (9个) - 修正：完全基于Excel真实数据，空字段用"/"
+      { id: 'I001', name: 'NEoN Digital Arts', type: 'Institutions', bio: 'NEoN Digital Arts (SCIO) advocates for digital art and technology while at the same time addressing the negatives aspects that can often arise from their use. We provide access to expertise and equipment in a safe, inclusive environment, using free, open-source or low cost software while simultaneously explaining the ethical issues surrounding their construction, use and disposal.', website: 'https://neondigitalarts.com/' },
+      { id: 'I002', name: 'Access Space', type: 'Institutions', bio: 'Access Space is an arts and education organisation, where people interested in art, design, computers, recycling, music, electronics, photography and more, meet like-minded people, share and develop skills. We engage with and encourage a very broad section of the community to get involved with artistic, creative and technical projects.', website: 'https://access-space.org/' },
+      { id: 'I003', name: 'Leitrim Sculpture Centre', type: 'Institutions', bio: 'The Sculpture Centre is a national resource for advancing the creative practice and knowledge of visual art making and its collaborative engagement with the ecologies of landscape, place and the rural. Based in Leitrim, Ireland.', website: 'https://www.leitrimsculpturecentre.ie/' },
+      { id: 'I004', name: 'Creative Heartlands', type: 'Institutions', bio: 'The Creative Heartlands project was established across Leitrim, Sligo and Roscommon in 2019 to strengthen economic growth and sustain existing enterprises in the creative sector. The project is managed by the Leitrim Design House in partnership with Leitrim, Sligo and Roscommon County Councils. In 2020 funding was received from Enterprise Ireland, under the Regional Enterprise Development Fund.', website: 'https://leitrimdesignhouse.ie/pages/creative-heartlands' },
+      { id: 'I005', name: 'Royal College of Art', type: 'Institutions', bio: '/', website: '/' },
+      { id: 'I006', name: 'Brunel University', type: 'Institutions', bio: '/', website: '/' },
+      { id: 'I007', name: 'University College Dublin', type: 'Institutions', bio: '/', website: '/' },
+      { id: 'I008', name: 'Waag Futurelab', type: 'Institutions', bio: '/', website: '/' },
+      { id: 'I009', name: 'University of the Creative Arts', type: 'Institutions', bio: 'UCA is the specialist creative arts university in the UK, offering undergraduate and postgraduate degree courses in Creative Arts, Business and Technology. It is based in Caterbury, UK.', website: 'https://www.uca.ac.uk/' },
+      
+      // 项目数据 (8个) - 修正：PR006和PR008的名称
+      { id: 'PR001', name: 'RiverSync', type: 'Projects', description: 'Jakob Kukula\'s RiverSync is a transdisciplinary artistic intervention focused on river systems as ecological, legal, and cultural actors. Over the course of six months, RiverSync used participatory design, environmental sensing, and community storytelling to foster new relationships between urban residents, river systems, and legal frameworks. The project was centred on the Spree River in Berlin but extended to include international connections with water justice movements. RiverSync invited communities to listen to the river, and to imagine what it would mean if rivers had voices, rights, and legal standing.', budget: '12,000 Euros', methods: 'Participatory speculative workshops, River-centred meditation, Legal Moots and Rights of the Spree - Legal Co-design for Framework development, Participatory mapping, Storytelling and Platform work, Sensor Module Design, The Diplomatic Suitcase', involved_institutions: 'Horizon Europe VOICE Project, European Union Grant Agreement No.101135803' },
+      { id: 'PR002', name: 'Synocene — beyond the Anthropocene', type: 'Projects', description: 'Synocene is a collaborative work that explores a de-centred view of our anthropocentric experience of the natural world. Voices of local communities, the sounds of Natura 2000 forests, and the contributions of artificial intelligence all work to imagine a future beyond the Anthropocene. Artist Marina Wainer\'s Synocene took place in Ulvenhout Forest, a protected nature reserve in the Netherlands. The project invited people of all ages to take a walk in the woods, listen deeply, and imagine conversations with the forest itself through sound technologies. Over the course of a week in December 2024, 37 participants, ranging from children to conservationists, joined Wainer and her team for forest walks, workshops, and AI storytelling sessions.', budget: '12,000 Euros', methods: 'Nature walks (Reflective sound walks using binaural recordings), Participatory Speculative Design, Interactive / Conversational dialogues with AI-generated forest beings, Reflective / Co-created storytelling and co-created narratives, Multilingual interface, Sound recordings / sound data collection', involved_institutions: 'Horizon Europe VOICE Project, European Union Grant Agreement No.101135803' },
+      { id: 'PR003', name: 'Greening the Lab: Decarbonising Biomedical Science', type: 'Projects', description: 'Anna Dumitriu\'s project, Greening the Lab: Decarbonising Biomedical Science (GTL), is an art-led response to the ecological footprint of the biomedical sector. The artistic intervention responds to an urgent need from the biomedical research community to create novel solutions and increase stakeholder support via their patient and public engagement (PPE) communities for artist-led actions towards decarbonisation of biomedical science and healthcare settings. With laboratories producing substantial waste, especially through single-use plastics and metals—the project sought to interrogate these issues through participatory, interdisciplinary artistic interventions.', budget: '12,000 Euros', website: 'https://annadumitriu.co.uk/portfolio/greening-the-lab-decarbonising-biomedical-science/', methods: 'Participatory art - hands-on art-making workshops, Storytelling and Open dialogue, Critical Making and Co-creative sessions, Experimental biomaterial processing, Open-source protocols, Strategic Dissemination at Symposiums and Public Events', involved_institutions: 'Brighton and Sussex Medical School, University of Leeds, University of Oxford, Horizon Europe VOICE Project' },
+      { id: 'PR004', name: 'Designing E-textile practice samplers to increase participation in clothes repair', type: 'Projects', description: 'Designing e-Textile Practice Samplers (DeTPS) ATSI project, led by artist and researcher Lucie Hernandez in partnership with Ealing Repair Café, explored how co-creation, digital tools, and community-led making can support sustainable clothing repair. Initially centred on developing e-textile practice samplers, the project evolved in response to the community\'s values and interests, focusing instead on visible mending, upcycling, and digital storytelling. Through weekly workshops, informal co-creation, and the use of accessible technologies like WhatsApp and QR codes, Lucie worked closely with volunteers to co-produce a range of creative outputs.', budget: '12,000 Euros', methods: 'Reflective Practice, Community Collaborative Mapping, Hybrid Engagement, Participatory Design-led workshops, Artistic production, Digital storytelling, Dissemination', involved_institutions: 'Ealing Repair Cafe, Horizon Europe VOICE Project', website: 'https://www.instagram.com/ealingrepaircafe/' },
+      { id: 'PR005', name: 'World Sensorium: Ireland - Connecting Europe', type: 'Projects', description: 'World Sensorium Ireland is a sensory-based, interdisciplinary, art project led by Gayil Nalls that explores olfactory heritage as a critical component of environmental awareness, cultural identity, and community participation. Rooted in the landscape and plant life of Ireland, the project draws attention to endangered sensory experiences and fosters multi-generational engagement with the ecological and cultural transformations associated with the decline of turf (peat) usage. Through documentary film, public screenings, participatory voting, scent-based engagement, and ethnobotanical research, the project highlights the value of local aromatic flora, the impact of climate change, and the potential for community-led conservation.', budget: '12,000 Euros', methods: 'Narrative Inquiry, Ethnographic Film Screening, Participatory Symposium, Sensory Immersion, QR-Coded Digital Polling, Dissemination Channels', involved_institutions: 'Horizon Europe VOICE Project', website: 'https://worldsensorium.com/world-sensorium-ireland-project/' },
+      { id: 'PR006', name: 'Empowering Youth Stewards of Felixstowe Biodiversity', type: 'Projects', description: 'Building on the 5-year immersive fiction The Treaty of Finsbury Park, Felixstowe Youth VOICE is a six-month arts project led by artist Ruth Catlow that brought together young people aged 19–28 to explore climate issues through creative storytelling, role-play, and digital media. Based in the coastal town of Felixstowe, the project helped local youth imagine new futures through the eyes of animals and plants, using tools like Snapchat filters and social media to tell their stories. Working with local youth leaders, this project empowers young people through creating a safe space for learning, sharing, and fun, while also building real-world skills and confidence.', budget: '12,000 Euros', methods: 'Multispecies LARP, Digital Engagement, Immersive Multispecies Roleplay - \'Mentor Species\' protocols, Social Holography, Creative Workshop Design, Historical Art Dissemination practices, Media Co-Production', involved_institutions: 'Horizon Europe VOICE Project', website: 'https://www.furtherfield.org/felixstowe-youth-voice/' },
+      { id: 'PR007', name: 'Mammory Mountain', type: 'Projects', description: 'An intimate performative VR experience that explores "dis-ease" within the body through the experience of breast cancer. This interactive experience told the stories of patient healthcare struggles, particularly on the hidden experiences of breast cancer treatment. This artwork was presented through a combination of interactive VR art installation and creative methodologies, audiences experienced the stories of survivors, the treatments, and the often unspoken effects of the journey.', website: 'https://mammary-vr.art/', methods: 'Experience Design, VR Development, Community Storytelling, Haptic Feedback Design', involved_institutions: 'NEoN Digital Arts, Access Space, Leitrim Sculpture Centre, Creative Heartlands' },
+      { id: 'PR008', name: 'INTER/her', type: 'Projects', description: 'The INTER/her project is an immersive installation and virtual experience. It was created to open up the conversation about phenomena experienced by women in their late 30\'s (sometimes earlier) their 40\'s, and sometimes after menopause. Working in consultation with a gynaecologist, the project features interviews with a number of women telling their stories. INTER/her has a focus on female reproductive diseases explored through a feminist lens; as personal exploration, as a conversation starter, to raise greater public awareness and encourage community building.', methods: 'Experience Design', involved_institutions: 'University of the Creative Arts, Access Space, New Maldon Studios, Centre Neptune', website: 'https://inter-her.art/' },
+      
+      // 方法数据 (7个) - 修正：M007的名称和内容
+      { id: 'M001', name: 'Forest Walking and Conversational Encounters Workshop Method', type: 'Methods', description: 'The Forest Walking Method is an immersive, participatory, sound-integrated and reflective artistic approach designed to explore human and more-than-human relationships through walking, listening, and conversational exchange. It centres on ecological awareness, immersive sound and characters, collaborative dialogue, and the imaginative use of AI to activate forest environments as playful, co-creative spaces for active ecological engagement and reflections.', category: '/', steps: '1. Preparation and Scouting: Establish key locations and connections\n2. Stakeholder Mapping and Communication: Create zone maps to visualise relationships\n3. Sound Collection and AI Generation: Record ambient sounds and develop AI characters\n4. Forest Workshop: Conduct walking sessions with binaural recordings\n5. Debrief, Reflection and Documentation: Gather feedback and archive responses\n6. Post-Workshop Creation and Legacy: Create outputs and share with communities', challenges: 'Ethical engagement and community consent; Technical adaptation to local conditions; Weather dependencies; Cultural sensitivity in AI character development', links: 'https://dl.acm.org/doi/abs/10.1145/3613905.3637118' },
+      { id: 'M002', name: 'Generative Felting and Biomaterial Workshopping Method', type: 'Methods', description: 'The Felting and Biomaterial Workshopping Method uses recycled lab and medical materials to create art-based workshops that invite participants into hands-on making, reflective discussion and playful exploration. It blends wet and dry felting, biomaterial crafting, and facilitated conversation to provoke new ways of seeing waste, contamination, care, and reuse in clinical and research settings. Participants range from scientists and patients, to artists and hospital staff.', category: '/', challenges: 'Safety protocols for handling medical waste; Material sourcing and preparation; Contamination concerns; Participant comfort with medical materials; Ensuring proper sterilization processes', conditions: 'Access to sterilized medical waste materials; Proper safety equipment and protocols; Workshop space with good ventilation; Experienced facilitators with knowledge of both art and medical safety' },
+      { id: 'M003', name: 'Experience Design', type: 'Methods', description: 'Reappropriated from the web and interaction design processes to create a participatory, performative and immersive practice, this method combines physical interaction, storytelling, haptics and emotional engagement. This method intersects digital art, performance, immersive storytelling, feminist healthcare activism, interaction design and VR technology. It also draws from theater, sound design, and embodied practices. This method uses wearable technology, VR, haptics and mobile systems as expressive tools.', category: 'Digital Technology', steps: '1. Topic selection and funding: Start with story-driven concept\n2. Community outreach: Engage those with lived experience\n3. Consent and data gathering: Record stories with clear protocols\n4. Team assembly: Include technologists, designers, animators\n5. Interaction and experience design: Map audience journey\n6. Prototype and test: Especially wearable and haptic elements\n7. Build and deploy: Design immersive environment\n8. Exhibition and caretaking: Manage emotional responses', challenges: 'Technical failure during performances; Emotional triggering of sensitive content; Community access barriers; Data ethics and consent management; Balancing technology with human experience' },
+      { id: 'M004', name: 'Inclusive Design', type: 'Methods', description: 'Inclusive Design is a philosophy, movement and methodology that aims to centre those traditionally excluded from design and cultural processes. It is an approach used by designers, artists, community workers, researchers, educators, and practitioners who want to engage with diverse perspectives to produce artworks or outcomes that are usable, respectful and co-owned by the people they aim to serve. Inclusive Design is an approach rather than one specific tool or method.', category: 'Inclusive Design', challenges: 'Avoiding tokenism and superficial inclusion; Managing power dynamics in collaborative processes; Ensuring authentic participation rather than consultation; Resource constraints and funding limitations; Balancing different community needs and perspectives; Maintaining long-term relationships beyond project timelines', conditions: 'Commitment to genuine power sharing; Flexible timelines that accommodate community schedules; Accessible meeting spaces and formats; Budget for participant compensation; Cultural competency training for team members; Clear agreements about authorship and ownership' },
+      { id: 'M005', name: 'Unlearning & Questioning', type: 'Methods', description: 'A method for recognising and dismantling internal biases through structured reflection exercises and questioning frameworks. This approach helps practitioners examine their own assumptions, privileges, and blind spots that may affect their work. It involves ongoing self-reflection and willingness to change approaches based on new understanding.', category: 'Inclusive Design', steps: '1. Acknowledge your own position, background, and assumptions\n2. Engage in structured reflection exercises to surface unconscious bias\n3. Question how these biases influence your art, audience, and methods\n4. Adjust or reframe your creative decisions to allow more equitable access\n5. Repeat this process iteratively - reflection is ongoing, not one-time', challenges: 'Personal discomfort with examining privilege; Resistance to changing established practices; Difficulty identifying unconscious biases; Balancing self-reflection with action; Managing emotional responses to difficult realizations' },
+      { id: 'M006', name: 'Who\'s at the Table? / Virtuous Tornado', type: 'Methods', description: 'A collaborative and speculative tool to explore representation, power and inclusion. It is designed to help us rethink inclusion and stakeholder presence throughout an artistic, design or technological process. This method is centred around key questions: Who are we designing with? Who couldn\'t access this process or space? How do we build a project where their voice is central, not peripheral?', category: 'Inclusive Design', steps: '1. Map out who is currently involved in your project\n2. Ask: \'Who is missing?\', \'Why are they missing?\'\n3. Use speculative personas or communities to rethink access and voice\n4. Imagine the project from these perspectives - what changes?\n5. Revise, re-engage, and re-centre those previously excluded', challenges: 'Time investment required for thorough stakeholder mapping; Difficulty reaching marginalized communities; Balancing different stakeholder needs; Ensuring personas are based on real experiences rather than assumptions', conditions: 'Research capacity for developing accurate personas; Connections to diverse communities; Flexibility to redesign project based on insights; Budget for expanded community engagement' },
+      { id: 'M007', name: 'Empathy Toolkit', type: 'Methods', description: 'A tool used within Inclusive Design to support awareness building and testing out new ideas, productions or artworks. The Empathy Toolkit offers a structured way to simulate physical or sensory limitations to better understand others\' experiences.', category: 'Inclusive Design', steps: '1. Use materials (e.g. gloves, goggles, tape, straps) to simulate specific impairments\n2. Perform a range of everyday tasks with these constraints\n3. Reflect and document your reactions (journaling, sketching, etc.)\n4. Use these insights to ideate design adaptations or provocations\n5. Supplement this method with engagement with people who have lived experience (to avoid assumptions)', challenges: 'Misguided empathy: Participants may become patronizing or rush to conclusions without deeply listening; Overdominant participants: In co-creation, louder voices can drown out others', conditions: 'It\'s important to build relationships slowly and center co-creation throughout. When delivering these workshops make sure to moderate actively, observe body language, and use checklists to track whose input is being represented.', links: 'https://link.springer.com/chapter/10.1007/978-3-319-07437-5_9' }
+    ],
+    links: [
+      // 完全基于Excel RELATIONSHIPS表的真实连接数据 (19个关系)
+      // People to Projects - Leadership relationships
+      { source: 'P001', target: 'PR001', relationship: 'leads', strength: 1 },
+      { source: 'P002', target: 'PR002', relationship: 'leads', strength: 1 },
+      { source: 'P003', target: 'PR003', relationship: 'leads', strength: 1 },
+      { source: 'P004', target: 'PR004', relationship: 'leads', strength: 1 },
+      { source: 'P005', target: 'PR005', relationship: 'leads', strength: 1 },
+      { source: 'P006', target: 'PR006', relationship: 'leads', strength: 1 },
+      { source: 'P007', target: 'PR007', relationship: 'leads', strength: 1 },
+      { source: 'P007', target: 'PR008', relationship: 'leads', strength: 1 },
+      
+      // Projects to Methods - Application relationships
+      { source: 'PR002', target: 'M001', relationship: 'applies', strength: 0.9 },
+      { source: 'PR003', target: 'M002', relationship: 'applies', strength: 0.9 },
+      { source: 'PR007', target: 'M003', relationship: 'applies', strength: 0.9 },
+      
+      // People to Methods - Development relationships
+      { source: 'P002', target: 'M001', relationship: 'develops', strength: 0.8 },
+      { source: 'P003', target: 'M002', relationship: 'develops', strength: 0.8 },
+      { source: 'P007', target: 'M003', relationship: 'develops', strength: 0.8 },
+      { source: 'P008', target: 'M004', relationship: 'develops', strength: 0.8 },
+      { source: 'P008', target: 'M005', relationship: 'develops', strength: 0.8 },
+      { source: 'P008', target: 'M006', relationship: 'develops', strength: 0.8 },
+      { source: 'P009', target: 'M004', relationship: 'develops', strength: 0.8 },
+      { source: 'P009', target: 'M007', relationship: 'develops', strength: 0.8 }
+    ]
+  };
+
+  // 添加缺失的 toggleNodeType 函数
+  const toggleNodeType = (type) => {
+    setVisibleTypes(prev => ({
+      ...prev,
+      [type]: !prev[type]
+    }));
+  };
+
+  // 获取过滤后的数据
+  const getFilteredData = () => {
+    const filteredNodes = data.nodes.filter(node => visibleTypes[node.type]);
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredLinks = data.links.filter(link => 
+      filteredNodeIds.has(link.source) && filteredNodeIds.has(link.target)
+    );
+    
+    return { nodes: filteredNodes, links: filteredLinks };
+  };
+
+  // 搜索功能
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+    if (term.trim() === '') {
+      setHighlightedNodes(new Set());
+    } else {
+      const matches = new Set();
+      data.nodes.forEach(node => {
+        if (node.name.toLowerCase().includes(term.toLowerCase()) ||
+            (node.bio && node.bio.toLowerCase().includes(term.toLowerCase())) ||
+            (node.description && node.description.toLowerCase().includes(term.toLowerCase())) ||
+            (node.methods && node.methods.toLowerCase().includes(term.toLowerCase())) ||
+            (node.category && node.category.toLowerCase().includes(term.toLowerCase()))) {
+          matches.add(node.id);
+        }
+      });
+      setHighlightedNodes(matches);
+    }
+  };
+
+  // 节点颜色配置
+  const getNodeColor = (type) => {
+    switch (type) {
+      case 'People': return '#5F5BA3';      // 紫色
+      case 'Institutions': return '#DC2680'; // 粉红色
+      case 'Projects': return '#EB631A';     // 橙色
+      case 'Methods': return '#F8AE15';      // 黄色
+      default: return '#999';
+    }
+  };
+
+  // 关系线颜色
+  const getLinkColor = (relationship) => {
+    return '#999'; // 统一灰色
+  };
+
+  // 节点图标
+  const getNodeIcon = (type) => {
+    switch (type) {
+      case 'People': return Users;
+      case 'Institutions': return Building;
+      case 'Projects': return FolderOpen;
+      case 'Methods': return Settings;
+      default: return Settings;
+    }
+  };
+
+  // D3.js 关系图
+  useEffect(() => {
+    if (viewMode !== 'graph') return;
+
+    const currentData = getFilteredData();
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    const width = 1000;
+    const height = 700;
+    
+    svg.attr('width', width).attr('height', height);
+
+    const g = svg.append('g');
+
+    // 缩放功能
+    const zoom = d3.zoom()
+      .scaleExtent([0.1, 4])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+        setZoomLevel(event.transform.k);
+      });
+
+    svg.call(zoom);
+
+    // 力导向图模拟
+    const simulation = d3.forceSimulation(currentData.nodes)
+      .force('link', d3.forceLink(currentData.links).id(d => d.id).distance(d => {
+        // 根据关系类型调整距离，给文字节点更多空间
+        switch (d.relationship) {
+          case 'leads': return 150;
+          case 'develops': return 180;
+          case 'applies': return 200;
+          case 'supports': return 220;
+          default: return 180;
+        }
+      }))
+      .force('charge', d3.forceManyBody().strength(-500))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(120)); // 增加碰撞半径避免文字重叠
+
+    simulationRef.current = simulation;
+
+    // 连线
+    const link = g.append('g')
+      .selectAll('line')
+      .data(currentData.links)
+      .enter().append('line')
+      .attr('stroke', '#999')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', d => Math.sqrt(d.strength) * 2);
+
+    // 节点 - 改为文字显示，支持换行和全名显示
+    const node = g.append('g')
+      .selectAll('foreignObject')
+      .data(currentData.nodes)
+      .enter().append('foreignObject')
+      .attr('width', 200)
+      .attr('height', 80)
+      .attr('x', -100)
+      .attr('y', -40)
+      .style('cursor', 'pointer')
+      .style('filter', d => highlightedNodes.size > 0 && !highlightedNodes.has(d.id) ? 'opacity(0.3)' : 'none')
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended))
+      .on('click', (event, d) => {
+        setSelectedNode(d);
+      })
+      .on('mouseover', function(event, d) {
+        // 只改变字体大小，不改变布局
+        d3.select(this).select('div')
+          .transition().duration(200)
+          .style('transform', 'scale(1.15)');
+        
+        // 高亮相连的节点和线
+        const connectedNodes = new Set();
+        currentData.links.forEach(l => {
+          if (l.source.id === d.id) connectedNodes.add(l.target.id);
+          if (l.target.id === d.id) connectedNodes.add(l.source.id);
+        });
+        
+        g.selectAll('foreignObject')
+          .style('opacity', n => n.id === d.id || connectedNodes.has(n.id) ? 1 : 0.3);
+        g.selectAll('line')
+          .style('opacity', l => l.source.id === d.id || l.target.id === d.id ? 1 : 0.1);
+      })
+      .on('mouseout', function(event, d) {
+        // 恢复原始大小
+        d3.select(this).select('div')
+          .transition().duration(200)
+          .style('transform', 'scale(1)');
+        
+        g.selectAll('foreignObject').style('opacity', 1);
+        g.selectAll('line').style('opacity', 0.6);
+      });
+
+    // 添加HTML内容到foreignObject
+    node.append('xhtml:div')
+      .style('width', '100%')
+      .style('height', '100%')
+      .style('display', 'flex')
+      .style('align-items', 'center')
+      .style('justify-content', 'center')
+      .style('text-align', 'center')
+      .style('font-size', '14px')
+      .style('font-weight', 'bold')
+      .style('line-height', '1.2')
+      .style('word-wrap', 'break-word')
+      .style('overflow-wrap', 'break-word')
+      .style('hyphens', 'auto')
+      .style('color', d => getNodeColor(d.type))
+      .style('padding', '5px')
+      .style('transform-origin', 'center')
+      .style('transition', 'transform 0.2s ease')
+      .text(d => d.name);
+
+    // 为每个节点添加一个不可见的中心点用于连线
+    const nodeCenters = g.append('g')
+      .selectAll('circle')
+      .data(currentData.nodes)
+      .enter().append('circle')
+      .attr('r', 2)
+      .attr('fill', 'transparent')
+      .style('pointer-events', 'none');
+
+    // 模拟更新
+    simulation.on('tick', () => {
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
+
+      node
+        .attr('x', d => d.x - 100)
+        .attr('y', d => d.y - 40);
+
+      nodeCenters
+        .attr('cx', d => d.x)
+        .attr('cy', d => d.y);
+    });
+
+    // 拖拽功能
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }
+
+    return () => {
+      simulation.stop();
+    };
+  }, [viewMode, highlightedNodes, visibleTypes]);
+
+  // 缩放控制
+  const handleZoom = (direction) => {
+    const svg = d3.select(svgRef.current);
+    const zoom = d3.zoom();
+    
+    if (direction === 'in') {
+      svg.transition().call(zoom.scaleBy, 1.5);
+    } else {
+      svg.transition().call(zoom.scaleBy, 0.67);
+    }
+  };
+
+  // 重置视图 - 刷新页面
+  const resetView = () => {
+    window.location.reload();
+  };
+
+  // 导航栏项目
+  const navItems = [
+    { id: 'intro', icon: Info, label: 'Introduction', content: 'This is an interactive relationship graph showing connections between people, institutions, projects, and methods in the field of interactive and immersive art. The visualization represents a network of 34 entities with 19 relationships, based on real data from the VOICE project and related research initiatives. Navigate by clicking, dragging, and exploring the connections between different types of entities. Note: All relationships are based strictly on the data provided in the Excel RELATIONSHIPS sheet.' },
+    { id: 'howto', icon: HelpCircle, label: 'How to use it', content: 'GRAPH VIEW: Click and drag nodes to explore relationships. Hover over nodes to see connections. Use the search bar to find specific items. Filter by type using the dropdown. Toggle between graph and simple view using the eye icon. Use zoom controls in the bottom right. SIMPLE VIEW: Browse organized columns of each entity type. Click on any item to see detailed information. Use search to highlight matching items across all categories.' },
+    { id: 'accessibility', icon: Accessibility, label: 'Accessibility', content: 'This site supports screen readers and keyboard navigation. Use Tab to navigate through interactive elements. All nodes and buttons have appropriate ARIA labels. High contrast mode is supported. Text can be scaled using browser zoom. For additional accessibility features, try enabling your browser\'s built-in accessibility tools or screen reader extensions.' },
+    { id: 'translation', icon: Languages, label: 'Translation Help', content: 'To translate this site, enable your browser\'s built-in translation feature. Most modern browsers (Chrome, Firefox, Edge, Safari) support automatic translation. Look for the translate icon in your address bar, or right-click and select "Translate to [your language]". For Chrome: Settings > Languages > Translate. For Firefox: Install a translation extension. The data content should translate along with the interface.' }
+  ];
+
+  return (
+    <div className="h-screen bg-gray-50 flex">
+      {/* 左侧导航栏 */}
+      <div className={`bg-white shadow-lg transition-all duration-300 ${isNavExpanded ? 'w-64' : 'w-16'} border-r`}>
+        <div className="p-4">
+          <button
+            onClick={() => setIsNavExpanded(!isNavExpanded)}
+            className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded transition-colors"
+            title="Toggle Navigation"
+          >
+            <Menu size={24} className="text-gray-600" />
+          </button>
+        </div>
+        
+        <nav className="mt-8">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setShowModal(item)}
+                className="w-full flex items-center p-4 hover:bg-gray-100 transition-colors text-left"
+                title={item.label}
+              >
+                <Icon size={20} className="text-gray-600 flex-shrink-0" />
+                {isNavExpanded && (
+                  <span className="ml-3 text-sm text-gray-700">{item.label}</span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+        
+        {/* 统计信息 */}
+        {isNavExpanded && (
+          <div className="absolute bottom-4 left-4 right-4 bg-gray-50 rounded-lg p-3">
+            <div className="text-xs text-gray-600 space-y-1">
+              <div className="font-semibold">VOICE Prototype V1</div>
+              <div className="text-xs text-gray-500 mb-2">Network Statistics:</div>
+              <div>Total Nodes: {data.nodes.length}</div>
+              <div>Total Links: {data.links.length}</div>
+              <div>People: {data.nodes.filter(n => n.type === 'People').length}</div>
+              <div>Institutions: {data.nodes.filter(n => n.type === 'Institutions').length}</div>
+              <div>Projects: {data.nodes.filter(n => n.type === 'Projects').length}</div>
+              <div>Methods: {data.nodes.filter(n => n.type === 'Methods').length}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 主内容区域 */}
+      <div className="flex-1 flex flex-col">
+        {/* 顶部工具栏 - 紧凑设计 */}
+        <div className="bg-white shadow-sm border-b px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* 搜索框居中 */}
+            <div className="flex-1 flex justify-center">
+              <div className="flex items-center max-w-md w-full">
+                <Search size={20} className="text-gray-400 mr-3" />
+                <input
+                  type="text"
+                  placeholder="Search nodes, descriptions, methods..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="flex-1 outline-none text-sm bg-gray-50 px-3 py-2 rounded border"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => handleSearch('')}
+                    className="ml-2 p-1 hover:bg-gray-100 rounded"
+                    title="Clear search"
+                  >
+                    <X size={16} className="text-gray-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {/* 右侧按钮 */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setViewMode(viewMode === 'graph' ? 'simple' : 'graph')}
+                className="flex items-center px-4 py-2 text-white rounded hover:opacity-90 transition-colors"
+                style={{ backgroundColor: '#00837F' }}
+                title={`Switch to ${viewMode === 'graph' ? 'Simple' : 'Graph'} View`}
+              >
+                {viewMode === 'graph' ? <EyeOff size={16} /> : <Eye size={16} />}
+                <span className="ml-2 text-sm">
+                  {viewMode === 'graph' ? 'Simple View' : 'Graph View'}
+                </span>
+              </button>
+              
+              <button
+                onClick={() => window.location.reload()}
+                className="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
+                title="Reset & Refresh"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+          
+          {/* 搜索结果提示 */}
+          {highlightedNodes.size > 0 && (
+            <div className="mt-2 text-center text-sm" style={{ color: '#00837F' }}>
+              Found {highlightedNodes.size} matching node{highlightedNodes.size !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+
+        {/* 主视图区域 */}
+        <div className={`flex-1 relative bg-white transition-all duration-300 ${selectedNode ? 'w-1/2' : showModal ? 'ml-1/2' : 'w-full'}`}>
+          {viewMode === 'graph' ? (
+            // 关系图视图
+            <div className="w-full h-full relative">
+              <svg ref={svgRef} className="w-full h-full bg-gradient-to-br from-gray-50 to-white"></svg>
+              
+              {/* 过滤器 */}
+              <div className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-xs">
+                <h3 className="font-semibold text-sm mb-3">Filters</h3>
+                <div className="space-y-3">
+                  {[
+                    { type: 'People', color: '#5F5BA3', count: data.nodes.filter(n => n.type === 'People').length },
+                    { type: 'Institutions', color: '#DC2680', count: data.nodes.filter(n => n.type === 'Institutions').length },
+                    { type: 'Projects', color: '#EB631A', count: data.nodes.filter(n => n.type === 'Projects').length },
+                    { type: 'Methods', color: '#F8AE15', count: data.nodes.filter(n => n.type === 'Methods').length }
+                  ].map(item => (
+                    <div 
+                      key={item.type} 
+                      className="flex items-center cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors"
+                      onClick={() => toggleNodeType(item.type)}
+                    >
+                      <div 
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center mr-3 transition-all`}
+                        style={{ 
+                          backgroundColor: visibleTypes[item.type] ? item.color : 'white',
+                          borderColor: visibleTypes[item.type] ? item.color : '#d1d5db'
+                        }}
+                      >
+                        {visibleTypes[item.type] && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-sm select-none ${visibleTypes[item.type] ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {item.type} ({item.count})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <div className="text-xs text-gray-600">
+                    <div>• Drag text to explore</div>
+                    <div>• Hover for connections</div>
+                    <div>• Click for details</div>
+                    <div>• Check/uncheck to filter</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // 简单表格视图
+            <div className="p-6 overflow-auto h-full">
+              <div className="bg-white rounded-lg shadow border">
+                <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 font-semibold text-sm text-gray-700 rounded-t-lg border-b">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded mr-2" style={{backgroundColor: '#5F5BA3'}}></div>
+                    People ({data.nodes.filter(n => n.type === 'People' && visibleTypes.People).length})
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded mr-2" style={{backgroundColor: '#DC2680'}}></div>
+                    Institutions ({data.nodes.filter(n => n.type === 'Institutions' && visibleTypes.Institutions).length})
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded mr-2" style={{backgroundColor: '#EB631A'}}></div>
+                    Projects ({data.nodes.filter(n => n.type === 'Projects' && visibleTypes.Projects).length})
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded mr-2" style={{backgroundColor: '#F8AE15'}}></div>
+                    Methods ({data.nodes.filter(n => n.type === 'Methods' && visibleTypes.Methods).length})
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-4 gap-4 p-4">
+                  {/* People Column */}
+                  <div className="space-y-3">
+                    {data.nodes.filter(n => n.type === 'People' && visibleTypes.People).map(node => (
+                      <button
+                        key={node.id}
+                        onClick={() => setSelectedNode(node)}
+                        className={`w-full text-left p-3 rounded border transition-all hover:shadow-md ${
+                          highlightedNodes.has(node.id) ? 'shadow-md' : 'hover:bg-gray-50 border-gray-200'
+                        }`}
+                        style={{
+                          backgroundColor: highlightedNodes.has(node.id) ? '#E6F7F6' : 'white',
+                          borderColor: highlightedNodes.has(node.id) ? '#00837F' : '#e5e7eb'
+                        }}
+                      >
+                        <div className="font-medium text-sm text-gray-900">{node.name}</div>
+                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">{node.connections}</div>
+                        <div className="text-xs text-gray-400 mt-1 truncate">{node.bio.substring(0, 80)}...</div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Institutions Column */}
+                  <div className="space-y-3">
+                    {data.nodes.filter(n => n.type === 'Institutions' && visibleTypes.Institutions).map(node => (
+                      <button
+                        key={node.id}
+                        onClick={() => setSelectedNode(node)}
+                        className={`w-full text-left p-3 rounded border transition-all hover:shadow-md ${
+                          highlightedNodes.has(node.id) ? 'bg-yellow-50 border-yellow-300 shadow-md' : 'hover:bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="font-medium text-sm text-gray-900">{node.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 truncate">{node.bio.substring(0, 100)}...</div>
+                        {node.website && (
+                          <div className="text-xs mt-1 flex items-center" style={{ color: '#00837F' }}>
+                            <ExternalLink size={10} className="mr-1" />
+                            Website
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Projects Column */}
+                  <div className="space-y-3">
+                    {data.nodes.filter(n => n.type === 'Projects' && visibleTypes.Projects).map(node => (
+                      <button
+                        key={node.id}
+                        onClick={() => setSelectedNode(node)}
+                        className={`w-full text-left p-3 rounded border transition-all hover:shadow-md ${
+                          highlightedNodes.has(node.id) ? 'bg-yellow-50 border-yellow-300 shadow-md' : 'hover:bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="font-medium text-sm text-gray-900">{node.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 line-clamp-3">{node.description.substring(0, 120)}...</div>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  {/* Methods Column */}
+                  <div className="space-y-3">
+                    {data.nodes.filter(n => n.type === 'Methods' && visibleTypes.Methods).map(node => (
+                      <button
+                        key={node.id}
+                        onClick={() => setSelectedNode(node)}
+                        className={`w-full text-left p-3 rounded border transition-all hover:shadow-md ${
+                          highlightedNodes.has(node.id) ? 'bg-yellow-50 border-yellow-300 shadow-md' : 'hover:bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="font-medium text-sm text-gray-900">{node.name}</div>
+                        {node.category && (
+                          <div className="text-xs text-white mt-1 inline-block px-2 py-1 rounded" style={{ backgroundColor: '#00837F' }}>
+                            {node.category}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-400 mt-2 line-clamp-3">{node.description.substring(0, 100)}...</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* 缩放控制按钮 - 仅在图形视图显示 */}
+          {viewMode === 'graph' && (
+            <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+              <button
+                onClick={() => handleZoom('in')}
+                className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border"
+                title="Zoom In"
+              >
+                <ZoomIn size={20} className="text-gray-600" />
+              </button>
+              <button
+                onClick={() => handleZoom('out')}
+                className="p-3 bg-white rounded-full shadow-lg hover:shadow-xl transition-shadow border"
+                title="Zoom Out"
+              >
+                <ZoomOut size={20} className="text-gray-600" />
+              </button>
+              <div className="text-xs text-center text-gray-500 mt-1 bg-white rounded px-2 py-1 shadow">
+                {Math.round(zoomLevel * 100)}%
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 节点详情面板 - 右侧固定面板 */}
+      {selectedNode && (
+        <div className="fixed right-0 top-0 w-1/2 h-full bg-white shadow-2xl border-l border-gray-200 z-50 flex flex-col">
+          {/* 面板头部 */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center">
+              <div 
+                className="w-6 h-6 rounded-full mr-3 flex-shrink-0"
+                style={{ backgroundColor: getNodeColor(selectedNode.type) }}
+              ></div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{selectedNode.name}</h2>
+                <p className="text-sm text-gray-500 font-medium">{selectedNode.type}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedNode(null)}
+              className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              title="Close"
+            >
+              <X size={20} className="text-gray-500" />
+            </button>
+          </div>
+          
+          {/* 可滚动内容区域 */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6">
+              {/* 主要信息 - 根据节点类型显示不同字段，空白字段显示 / */}
+              
+              {/* People节点字段 */}
+              {selectedNode.type === 'People' && (
+                <>
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Biography</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedNode.bio || '/'}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Institutional Connections</h3>
+                    <div className="text-sm text-gray-700 p-4 rounded-lg border" style={{ backgroundColor: '#E6F7F6', borderColor: '#00837F' }}>
+                      {selectedNode.connections || '/'}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Website</h3>
+                    {selectedNode.website ? (
+                      <a
+                        href={selectedNode.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm p-4 rounded-lg border font-medium transition-colors hover:opacity-90"
+                        style={{ 
+                          backgroundColor: '#E6F7F6', 
+                          borderColor: '#00837F',
+                          color: '#00837F'
+                        }}
+                      >
+                        Visit Website <ExternalLink size={16} className="ml-2" />
+                      </a>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* Institutions节点字段 */}
+              {selectedNode.type === 'Institutions' && (
+                <>
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Description</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedNode.bio || '/'}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Website</h3>
+                    {selectedNode.website ? (
+                      <a
+                        href={selectedNode.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm p-4 rounded-lg border font-medium transition-colors hover:opacity-90"
+                        style={{ 
+                          backgroundColor: '#E6F7F6', 
+                          borderColor: '#00837F',
+                          color: '#00837F'
+                        }}
+                      >
+                        Visit Website <ExternalLink size={16} className="ml-2" />
+                      </a>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* Projects节点字段 */}
+              {selectedNode.type === 'Projects' && (
+                <>
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Description</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedNode.description || '/'}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Budget</h3>
+                    {selectedNode.budget ? (
+                      <span className="inline-block px-4 py-2 bg-green-100 text-green-800 text-sm rounded-full font-medium">
+                        {selectedNode.budget}
+                      </span>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Methods</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedNode.methods || '/'}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Involved Institutions</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {selectedNode.involved_institutions || '/'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Website</h3>
+                    {selectedNode.website ? (
+                      <a
+                        href={selectedNode.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm p-4 rounded-lg border font-medium transition-colors hover:opacity-90"
+                        style={{ 
+                          backgroundColor: '#E6F7F6', 
+                          borderColor: '#00837F',
+                          color: '#00837F'
+                        }}
+                      >
+                        Visit Website <ExternalLink size={16} className="ml-2" />
+                      </a>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* Methods节点字段 */}
+              {selectedNode.type === 'Methods' && (
+                <>
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Description</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedNode.description || '/'}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Category</h3>
+                    {selectedNode.category && selectedNode.category !== '/' ? (
+                      <span className="inline-block px-4 py-2 text-sm rounded-full font-medium" style={{ backgroundColor: '#E6F7F6', color: '#00837F' }}>
+                        {selectedNode.category}
+                      </span>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Steps</h3>
+                    {selectedNode.steps ? (
+                      <div className="text-sm text-gray-700 whitespace-pre-line bg-gray-50 p-4 rounded-lg border">{selectedNode.steps}</div>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">What challenges might you encounter?</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {selectedNode.challenges || '/'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">What conditions / materials are needed?</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {selectedNode.conditions || '/'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Links</h3>
+                    {selectedNode.links ? (
+                      <a
+                        href={selectedNode.links}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-sm p-4 rounded-lg border font-medium transition-colors hover:opacity-90"
+                        style={{ 
+                          backgroundColor: '#E6F7F6', 
+                          borderColor: '#00837F',
+                          color: '#00837F'
+                        }}
+                      >
+                        View Publication <ExternalLink size={16} className="ml-2" />
+                      </a>
+                    ) : (
+                      <div className="text-sm text-gray-700">/</div>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* 相关连接 - 简化版本，只显示类型 */}
+              <div>
+                <h3 className="font-semibold mb-3 text-gray-800 border-b border-gray-200 pb-2">Connected Entities</h3>
+                <div className="space-y-3">
+                  {data.links
+                    .filter(link => link.source === selectedNode.id || link.target === selectedNode.id)
+                    .map((link, index) => {
+                      const connectedNodeId = link.source === selectedNode.id ? link.target : link.source;
+                      const connectedNode = data.nodes.find(n => n.id === connectedNodeId);
+                      if (!connectedNode) return null;
+                      return (
+                        <div key={index} className="flex items-center p-4 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors cursor-pointer"
+                             onClick={() => setSelectedNode(connectedNode)}>
+                          <div 
+                            className="w-4 h-4 rounded-full mr-4 flex-shrink-0"
+                            style={{ backgroundColor: getNodeColor(connectedNode.type) }}
+                          ></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm text-gray-900 truncate">
+                              {connectedNode.name}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {connectedNode.type}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            →
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 导航栏模态框 - 左侧半屏 */}
+      {showModal && (
+        <div className="fixed left-0 top-0 w-1/2 h-full bg-white shadow-2xl border-r border-gray-200 z-50 flex flex-col">
+          {/* 模态框头部 */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+            <h2 className="text-xl font-bold text-gray-900">{showModal.label}</h2>
+            <button
+              onClick={() => setShowModal(null)}
+              className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              title="Close"
+            >
+              <X size={20} className="text-gray-500" />
+            </button>
+          </div>
+          
+          {/* 可滚动内容区域 */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              <div className="text-sm text-gray-700 leading-relaxed">{showModal.content}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RelationshipGraphApp;
