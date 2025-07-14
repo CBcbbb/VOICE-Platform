@@ -4,7 +4,7 @@ A dynamic network visualization tool for mapping connections between people, ins
 
 ## Overview
 
-This platform visualizes complex relationships within research networks, providing both interactive graph views and organized data tables. Built for the VOICE project to map connections between artists, institutions, projects, and methodologies in digital art and technology research.
+This platform visualizes complex relationships within research networks, providing both interactive graph views and organized data tables. Built for the VOICE project to map connections between people, institutions, projects, and methodologies in digital art and technology research.
 
 ## Features
 
